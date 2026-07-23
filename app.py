@@ -248,6 +248,77 @@ No representa una predicción deportiva real.
 """)
 
 # =====================================================
+# SIMULACIÓN DE TÍTULOS FUTUROS
+# =====================================================
+
+st.subheader("🔮 Simulación de títulos futuros")
+
+años = st.slider(
+    "¿Cuántos años desea simular?",
+    5,
+    50,
+    20
+)
+
+# Probabilidad base de ser campeón cada año
+prob_base = st.slider(
+    "Probabilidad anual de ser campeón (%)",
+    5,
+    40,
+    12
+) / 100
+
+años_futuros = []
+campeon = []
+
+for año in range(df["Temporada"].max()+1, df["Temporada"].max()+años+1):
+
+    titulo = np.random.rand() < prob_base
+
+    años_futuros.append(año)
+    campeon.append(1 if titulo else 0)
+
+pred_df = pd.DataFrame({
+    "Temporada": años_futuros,
+    "Título": campeon
+})
+
+titulos_futuros = pred_df["Título"].sum()
+
+# Mostrar resultados
+
+st.metric(
+    "🏆 Ligas ganadas en la simulación",
+    int(titulos_futuros)
+)
+
+if titulos_futuros > 0:
+
+    años_campeon = pred_df[pred_df["Título"]==1]["Temporada"].tolist()
+
+    st.success(
+        "El Medellín sería campeón en:\n\n" +
+        ", ".join(map(str,años_campeon))
+    )
+
+else:
+
+    st.error(
+        "En esta simulación el Medellín no ganó ninguna liga."
+    )
+
+# Gráfico
+
+fig6 = px.bar(
+    pred_df,
+    x="Temporada",
+    y="Título",
+    title="Ligas simuladas"
+)
+
+st.plotly_chart(fig6, use_container_width=True)
+
+# =====================================================
 # RESUMEN
 # =====================================================
 
