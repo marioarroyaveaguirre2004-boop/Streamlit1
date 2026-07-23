@@ -93,3 +93,73 @@ Este resultado es únicamente una simulación basada en tendencias
 estadísticas y NO representa una predicción deportiva real.
 """
 )
+
+import numpy as np
+
+def generar_historial():
+
+    np.random.seed(7)
+
+    temporadas = list(range(2005,2026))
+
+    puntos = np.random.normal(35,8,len(temporadas)).astype(int)
+    victorias = np.random.randint(6,18,len(temporadas))
+    posicion = np.random.randint(1,20,len(temporadas))
+
+    titulos = []
+
+    for año in temporadas:
+
+        if año in [2009,2016]:
+            titulos.append(1)
+        else:
+            titulos.append(0)
+
+    df = pd.DataFrame({
+        "Temporada":temporadas,
+        "Puntos":puntos,
+        "Victorias":victorias,
+        "Posicion":posicion,
+        "Titulo":titulos
+    })
+
+    return df
+
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+def calcular_estadisticas(df):
+
+    return {
+
+        "temporadas":len(df),
+
+        "victorias":df["Victorias"].sum(),
+
+        "titulos":df["Titulo"].sum(),
+
+        "promedio":df["Puntos"].mean()
+
+    }
+
+
+def predecir_proximo_titulo(df,horizonte):
+
+    años = np.array(df["Temporada"]).reshape(-1,1)
+
+    puntos = np.array(df["Puntos"])
+
+    modelo = LinearRegression()
+
+    modelo.fit(años,puntos)
+
+    futuros = np.arange(
+        df["Temporada"].max()+1,
+        df["Temporada"].max()+horizonte+1
+    )
+
+    pred = modelo.predict(futuros.reshape(-1,1))
+
+    indice = pred.argmax()
+
+    return int(futuros[indice])
