@@ -1,157 +1,103 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
+from sklearn.linear_model import LinearRegression
 
-from data_generator import generar_historial
-from analysis import calcular_estadisticas, predecir_proximo_titulo
+# =====================================================
+# CONFIGURACIÓN
+# =====================================================
 
 st.set_page_config(
-    page_title="Análisis Independiente Medellín",
+    page_title="Análisis Histórico - Independiente Medellín",
+    page_icon="🔴",
     layout="wide"
 )
 
-st.title("🔴🔵 Análisis Histórico - Independiente Medellín")
+# =====================================================
+# GENERACIÓN DE DATOS SIMULADOS
+# =====================================================
 
-st.write(
-"""
-Esta aplicación simula el desempeño histórico del DIM y realiza
-análisis estadísticos junto con una estimación de cuándo podría
-volver a ganar una Liga Colombiana.
-"""
-)
-
-# --------------------------
-# Simulación
-# --------------------------
-
-df = generar_historial()
-
-st.subheader("Datos simulados")
-
-st.dataframe(df)
-
-# --------------------------
-# Estadísticas
-# --------------------------
-
-stats = calcular_estadisticas(df)
-
-col1,col2,col3,col4 = st.columns(4)
-
-col1.metric("Temporadas", stats["temporadas"])
-col2.metric("Victorias", stats["victorias"])
-col3.metric("Títulos", stats["titulos"])
-col4.metric("Promedio de puntos", round(stats["promedio"],1))
-
-# --------------------------
-# Gráficos
-# --------------------------
-
-st.subheader("Puntos por temporada")
-
-fig = px.line(
-    df,
-    x="Temporada",
-    y="Puntos",
-    markers=True
-)
-
-st.plotly_chart(fig,use_container_width=True)
-
-st.subheader("Posición final")
-
-fig2 = px.bar(
-    df,
-    x="Temporada",
-    y="Posicion"
-)
-
-st.plotly_chart(fig2,use_container_width=True)
-
-# --------------------------
-# Interacción
-# --------------------------
-
-st.subheader("Predicción")
-
-años = st.slider(
-    "Horizonte de simulación",
-    1,
-    15,
-    5
-)
-
-pred = predecir_proximo_titulo(df,años)
-
-st.success(
-    f"Según la simulación, el DIM tendría mayor probabilidad de ganar nuevamente en el año **{pred}**."
-)
-
-st.info(
-"""
-Este resultado es únicamente una simulación basada en tendencias
-estadísticas y NO representa una predicción deportiva real.
-"""
-)
-
-import numpy as np
-
+@st.cache_data
 def generar_historial():
 
-    np.random.seed(7)
+    np.random.seed(42)
 
-    temporadas = list(range(2005,2026))
+    temporadas = np.arange(2005, 2026)
 
-    puntos = np.random.normal(35,8,len(temporadas)).astype(int)
-    victorias = np.random.randint(6,18,len(temporadas))
-    posicion = np.random.randint(1,20,len(temporadas))
+    puntos = np.random.randint(24, 48, len(temporadas))
+    victorias = np.random.randint(6, 18, len(temporadas))
+    empates = np.random.randint(4, 12, len(temporadas))
+    derrotas = np.random.randint(2, 12, len(temporadas))
+
+    posiciones = []
+
+    for p in puntos:
+        if p > 42:
+            posiciones.append(np.random.randint(1,4))
+        elif p > 36:
+            posiciones.append(np.random.randint(4,8))
+        elif p > 30:
+            posiciones.append(np.random.randint(8,12))
+        else:
+            posiciones.append(np.random.randint(12,20))
 
     titulos = []
 
     for año in temporadas:
-
-        if año in [2009,2016]:
+        if año in [2009, 2016]:
             titulos.append(1)
         else:
             titulos.append(0)
 
+    goles_favor = np.random.randint(20, 48, len(temporadas))
+    goles_contra = np.random.randint(18, 40, len(temporadas))
+
     df = pd.DataFrame({
-        "Temporada":temporadas,
-        "Puntos":puntos,
-        "Victorias":victorias,
-        "Posicion":posicion,
-        "Titulo":titulos
+        "Temporada": temporadas,
+        "Puntos": puntos,
+        "Victorias": victorias,
+        "Empates": empates,
+        "Derrotas": derrotas,
+        "Posición": posiciones,
+        "Goles a Favor": goles_favor,
+        "Goles en Contra": goles_contra,
+        "Título": titulos
     })
 
     return df
 
-import numpy as np
-from sklearn.linear_model import LinearRegression
+df = generar_historial()
 
-def calcular_estadisticas(df):
+# =====================================================
+# ESTADÍSTICAS
+# =====================================================
+
+def estadisticas(df):
 
     return {
-
-        "temporadas":len(df),
-
-        "victorias":df["Victorias"].sum(),
-
-        "titulos":df["Titulo"].sum(),
-
-        "promedio":df["Puntos"].mean()
-
+        "Temporadas": len(df),
+        "Victorias": int(df["Victorias"].sum()),
+        "Empates": int(df["Empates"].sum()),
+        "Derrotas": int(df["Derrotas"].sum()),
+        "Títulos": int(df["Título"].sum()),
+        "Promedio Puntos": df["Puntos"].mean(),
+        "Promedio Posición": df["Posición"].mean()
     }
 
+stats = estadisticas(df)
 
-def predecir_proximo_titulo(df,horizonte):
+# =====================================================
+# PREDICCIÓN
+# =====================================================
 
-    años = np.array(df["Temporada"]).reshape(-1,1)
+def predecir_titulo(df, horizonte):
 
-    puntos = np.array(df["Puntos"])
+    X = df["Temporada"].values.reshape(-1,1)
+    y = df["Puntos"].values
 
     modelo = LinearRegression()
-
-    modelo.fit(años,puntos)
+    modelo.fit(X,y)
 
     futuros = np.arange(
         df["Temporada"].max()+1,
@@ -160,6 +106,161 @@ def predecir_proximo_titulo(df,horizonte):
 
     pred = modelo.predict(futuros.reshape(-1,1))
 
-    indice = pred.argmax()
+    mejor = futuros[np.argmax(pred)]
 
-    return int(futuros[indice])
+    return int(mejor), pred
+
+# =====================================================
+# INTERFAZ
+# =====================================================
+
+st.title("🔴🔵 Análisis del Independiente Medellín")
+
+st.markdown("""
+Esta aplicación **simula** el rendimiento histórico del Independiente Medellín,
+muestra estadísticas, gráficos y estima en qué año tendría mayor probabilidad
+de volver a ganar una Liga Colombiana.
+""")
+
+st.divider()
+
+# =====================================================
+# MÉTRICAS
+# =====================================================
+
+c1,c2,c3,c4 = st.columns(4)
+
+c1.metric("Temporadas", stats["Temporadas"])
+c2.metric("Victorias", stats["Victorias"])
+c3.metric("Títulos", stats["Títulos"])
+c4.metric("Promedio Puntos", f"{stats['Promedio Puntos']:.1f}")
+
+st.divider()
+
+# =====================================================
+# TABLA
+# =====================================================
+
+st.subheader("Datos Simulados")
+
+st.dataframe(df, use_container_width=True)
+
+# =====================================================
+# GRÁFICOS
+# =====================================================
+
+st.subheader("Puntos por Temporada")
+
+fig1 = px.line(
+    df,
+    x="Temporada",
+    y="Puntos",
+    markers=True,
+    title="Evolución de Puntos"
+)
+
+st.plotly_chart(fig1, use_container_width=True)
+
+# -----------------------------------------------------
+
+st.subheader("Posición Final")
+
+fig2 = px.bar(
+    df,
+    x="Temporada",
+    y="Posición",
+    title="Posición por Temporada"
+)
+
+fig2.update_yaxes(autorange="reversed")
+
+st.plotly_chart(fig2, use_container_width=True)
+
+# -----------------------------------------------------
+
+st.subheader("Victorias por Temporada")
+
+fig3 = px.bar(
+    df,
+    x="Temporada",
+    y="Victorias",
+    color="Victorias",
+    title="Victorias"
+)
+
+st.plotly_chart(fig3, use_container_width=True)
+
+# -----------------------------------------------------
+
+st.subheader("Distribución de Puntos")
+
+fig4 = px.histogram(
+    df,
+    x="Puntos",
+    nbins=10,
+    title="Distribución de Puntos"
+)
+
+st.plotly_chart(fig4, use_container_width=True)
+
+# =====================================================
+# INTERACCIÓN
+# =====================================================
+
+st.divider()
+
+st.subheader("🔮 Predicción del Próximo Título")
+
+horizonte = st.slider(
+    "Años a simular",
+    1,
+    20,
+    8
+)
+
+año_predicho, valores = predecir_titulo(df, horizonte)
+
+futuro = pd.DataFrame({
+    "Temporada": np.arange(
+        df["Temporada"].max()+1,
+        df["Temporada"].max()+horizonte+1
+    ),
+    "Puntos Esperados": valores
+})
+
+fig5 = px.line(
+    futuro,
+    x="Temporada",
+    y="Puntos Esperados",
+    markers=True,
+    title="Proyección de Rendimiento"
+)
+
+st.plotly_chart(fig5, use_container_width=True)
+
+st.success(
+    f"📈 Según esta simulación, el Independiente Medellín tendría su mejor oportunidad de ganar una liga en el año **{año_predicho}**."
+)
+
+st.info("""
+⚠️ Esta predicción es únicamente una simulación basada en una tendencia lineal de los datos generados aleatoriamente.
+No representa una predicción deportiva real.
+""")
+
+# =====================================================
+# RESUMEN
+# =====================================================
+
+st.divider()
+
+st.subheader("Resumen Estadístico")
+
+st.write(f"• Total de temporadas analizadas: **{stats['Temporadas']}**")
+st.write(f"• Total de victorias: **{stats['Victorias']}**")
+st.write(f"• Total de empates: **{stats['Empates']}**")
+st.write(f"• Total de derrotas: **{stats['Derrotas']}**")
+st.write(f"• Títulos obtenidos: **{stats['Títulos']}**")
+st.write(f"• Promedio de puntos: **{stats['Promedio Puntos']:.2f}**")
+st.write(f"• Promedio de posición: **{stats['Promedio Posición']:.2f}**")
+
+st.caption("Proyecto de analítica deportiva desarrollado con Streamlit, Pandas, Plotly y Scikit-Learn.")
